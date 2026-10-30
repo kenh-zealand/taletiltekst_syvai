@@ -65,19 +65,22 @@ MODELS = {
     "hurtig": {
         "label": "Hurtig  (q5_0, ca. 574 MB - anbefalet)",
         "file": "edda-v0.2-q5_0.bin",
-        "sha256": "9bdfd79be6fad58b0a6f273526fe7e3fdc856bea7b31c19d032c8352d0bf0197",
-        "urls": [
-            "https://huggingface.co/tec-7/edda-v0.2-ggml/resolve/main/edda-v0.2-q5_0.bin",
-            "https://huggingface.co/emillykkegrann/edda-v0.2-GGML/resolve/main/ggml-edda-v0.2-q5_0.bin",
+        # (adresse, SHA-256 eller None hvis kilden ikke oplyser en kontrolsum)
+        "sources": [
+            ("https://huggingface.co/tec-7/edda-v0.2-ggml/resolve/main/edda-v0.2-q5_0.bin",
+             "9bdfd79be6fad58b0a6f273526fe7e3fdc856bea7b31c19d032c8352d0bf0197"),
+            ("https://huggingface.co/emillykkegrann/edda-v0.2-GGML/resolve/main/ggml-edda-v0.2-q5_0.bin",
+             None),
         ],
     },
     "praecis": {
         "label": "Præcis  (q8_0, ca. 874 MB - lidt langsommere)",
         "file": "edda-v0.2-q8_0.bin",
-        "sha256": "976dd84ac3e4e209d8c77de921d6fd0e42b624470578cd897bef653a97e6b4b7",
-        "urls": [
-            "https://huggingface.co/kstorm77/edda-v0.2/resolve/main/ggml/ggml-edda-v0.2-q8_0.bin",
-            "https://huggingface.co/emillykkegrann/edda-v0.2-GGML/resolve/main/ggml-edda-v0.2-q8_0.bin",
+        "sources": [
+            ("https://huggingface.co/emillykkegrann/edda-v0.2-GGML/resolve/main/ggml-edda-v0.2-q8_0.bin",
+             None),
+            ("https://huggingface.co/kstorm77/edda-v0.2/resolve/main/ggml/ggml-edda-v0.2-q8_0.bin",
+             "976dd84ac3e4e209d8c77de921d6fd0e42b624470578cd897bef653a97e6b4b7"),
         ],
     },
 }
@@ -229,16 +232,20 @@ def ensure_model(key: str) -> Path:
         return dest
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     print(f"\nModellen '{key}' er ikke hentet endnu - henter den nu (sker kun én gang).")
-    for url in spec["urls"]:
+    for url, expected_sha in spec["sources"]:
         print(f"Kilde: {url}")
         try:
             download(url, dest)
         except Exception as e:  # noqa: BLE001
             print(f"  kunne ikke hente: {e}")
             continue
-        if spec.get("sha256"):
+        if dest.stat().st_size < 100_000_000:
+            print("  filen er for lille til at være modellen - prøver næste kilde.")
+            dest.unlink(missing_ok=True)
+            continue
+        if expected_sha:
             print("  tjekker filen ...")
-            if sha256_of(dest) != spec["sha256"]:
+            if sha256_of(dest) != expected_sha:
                 print("  filen matcher ikke den forventede kontrolsum - prøver næste kilde.")
                 dest.unlink(missing_ok=True)
                 continue
