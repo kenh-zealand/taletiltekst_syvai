@@ -41,6 +41,7 @@ python edda.py optagelse.m4a -m hurtig -f begge   ingen spørgsmål
 python edda.py D:\Optagelser -f txt               hele mappen
 python edda.py https://www.youtube.com/watch?v=XXXXXXXXXXX
 python edda.py møde.mp3 --prompt "Moodle, WISEflow, erhvervsakademi"
+python edda.py D:\Optagelser -m praecis -f txt --sluk   sluk pc'en, når den er færdig
 python edda.py --hent-model -m praecis            hent kun modellen på forhånd
 ```
 
@@ -53,6 +54,7 @@ python edda.py --hent-model -m praecis            hent kun modellen på forhånd
 | `-o, --output-dir` | Hvor filerne gemmes (standard undermappen `Transskriptioner` ved siden af værktøjet) |
 | `--prompt "..."` | Fagord og navne, som modellen skal stave rigtigt |
 | `-t, --threads` | Antal CPU-tråde (standard: antal fysiske kerner, højst 8) |
+| `--sluk` | Lukker computeren ned, når alt er færdigt. Du får 30 sek. til at fortryde med en vilkårlig tast |
 | `--hent-model` | Henter modellen og afslutter |
 
 Resultatet får samme navn som kildefilen eller YouTube-titlen, fx

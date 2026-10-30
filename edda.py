@@ -13,6 +13,7 @@ Brug:
     python edda.py D:\\Optagelser -f txt              alle lyd/video-filer i en mappe
     python edda.py https://www.youtube.com/watch?v=XXXXXXXXXXX
     python edda.py møde.mp3 --prompt "Moodle, WISEflow, erhvervsakademi"
+    python edda.py D:\\Optagelser -m praecis -f txt --sluk   sluk pc'en bagefter
 
 Mens den transskriberer, kan du trykke:
     P   pause / fortsæt
@@ -655,6 +656,35 @@ def ask_terms() -> str:
     return ", ".join(terms)
 
 
+def ask_yes_no(question: str) -> bool:
+    return input(f"{question} [j/N]: ").strip().lower() in ("j", "ja", "y", "yes")
+
+
+def countdown_shutdown(seconds: int = 30) -> None:
+    """Luk computeren ned efter en nedtælling, medmindre brugeren trykker en tast."""
+    can_cancel = msvcrt is not None and sys.stdin.isatty()
+    hint = "Tryk en vilkårlig tast for at afbryde." if can_cancel else "Tryk Ctrl+C for at afbryde."
+    print(f"\nComputeren lukker ned om {seconds} sekunder. {hint}")
+    try:
+        for left in range(seconds, 0, -1):
+            print(f"\r  Nedlukning om {left:2d} sek. ", end="", flush=True)
+            end = time.time() + 1
+            while time.time() < end:
+                if can_cancel and msvcrt.kbhit():
+                    msvcrt.getch()
+                    print("\n\nNedlukning afbrudt.")
+                    return
+                time.sleep(0.05)
+    except KeyboardInterrupt:
+        print("\n\nNedlukning afbrudt.")
+        return
+    print("\n\nLukker computeren ned ...")
+    if os.name == "nt":
+        subprocess.run(["shutdown", "/s", "/t", "0"])
+    else:
+        subprocess.run(["shutdown", "-h", "now"])
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Dansk tale-til-tekst med Edda v0.2 og whisper.cpp (kører på CPU).")
@@ -665,6 +695,8 @@ def main():
     parser.add_argument("--prompt", default=None,
                         help="Fagord/navne der skal staves rigtigt, fx \"Moodle, WISEflow\"")
     parser.add_argument("-t", "--threads", type=int, default=default_threads(), help="Antal CPU-tråde")
+    parser.add_argument("--sluk", action="store_true",
+                        help="Luk computeren ned, når alt er færdigt (30 sek. til at fortryde)")
     parser.add_argument("--hent-model", action="store_true", help="Hent kun modellen og afslut")
     args = parser.parse_args()
 
@@ -704,6 +736,12 @@ def main():
     if prompt is None and fully_interactive:
         prompt = ask_terms()
 
+    shutdown_after = args.sluk
+    if not shutdown_after and (not args.model or not args.format):
+        shutdown_after = ask_yes_no("\nLuk computeren ned, når transskriptionen er færdig?")
+    if shutdown_after:
+        print("OK - computeren lukker ned bagefter (du får 30 sek. til at fortryde).")
+
     model = ensure_model(model_key)
     out_dir = Path(args.output_dir)
 
@@ -714,12 +752,17 @@ def main():
         res = transcribe_one(item, whisper=whisper, ffmpeg=ffmpeg, model=model, fmt=fmt,
                              out_dir=out_dir, prompt=prompt or "", threads=args.threads)
         if res == "stop":
+            if shutdown_after:
+                print("Du stoppede selv - computeren lukkes ikke ned.")
             sys.exit(0)
         results[res] += 1
 
     if len(items) > 1:
         print(f"\nAlt færdigt: {results['ok']} lykkedes, {results['fejl']} fejlede.")
     print(f"Filerne ligger i: {out_dir}")
+
+    if shutdown_after:
+        countdown_shutdown(30)
 
 
 if __name__ == "__main__":
