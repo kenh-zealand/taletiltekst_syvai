@@ -640,6 +640,21 @@ def transcribe_one(item: str, *, whisper: str, ffmpeg: str, model: Path, fmt: st
         shutil.rmtree(work, ignore_errors=True)
 
 
+def ask_terms() -> str:
+    """Spørg efter fagord - ét eller flere pr. linje, tom linje afslutter."""
+    print("\nFagord eller navne der skal staves rigtigt.")
+    print("Skriv ét eller flere pr. linje (adskil gerne med komma). Tryk Enter på en tom linje for at gå videre.")
+    terms = []
+    while True:
+        line = input(f"  ord {len(terms) + 1}: " if not terms else "  flere: ").strip()
+        if not line:
+            break
+        terms += [t.strip() for t in line.split(",") if t.strip()]
+    if terms:
+        print(f"Bruger fagord: {', '.join(terms)}")
+    return ", ".join(terms)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Dansk tale-til-tekst med Edda v0.2 og whisper.cpp (kører på CPU).")
@@ -687,7 +702,7 @@ def main():
 
     prompt = args.prompt
     if prompt is None and fully_interactive:
-        prompt = input("\nFagord eller navne der skal staves rigtigt (Enter = spring over): ").strip()
+        prompt = ask_terms()
 
     model = ensure_model(model_key)
     out_dir = Path(args.output_dir)
