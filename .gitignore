@@ -1,0 +1,12 @@
+whisper/
+whisper.zip
+models/
+__pycache__/
+*.pyc
+*.part
+*.wav
+*.txt
+*.srt
+Transskriptioner/
+sidste-koersel.log
+sidste-lyd.wav
