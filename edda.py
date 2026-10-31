@@ -315,7 +315,7 @@ class Status:
         self.pct = None
         self.paused = False
         self.start = time.time()
-        self.phase_start = self.start
+        self.phase_start = 0.0  # aktiv tid (uden pauser), da fasen startede
         self.pause_started = None
         self.paused_total = 0.0
         self.lock = threading.Lock()
@@ -331,7 +331,7 @@ class Status:
         with self.lock:
             if phase != self.phase:
                 self.phase = phase
-                self.phase_start = time.time()
+                self.phase_start = self._elapsed()
 
     def set_pct(self, pct):
         with self.lock:
@@ -357,7 +357,7 @@ class Status:
             parts.append(f"[{'#' * filled}{'.' * (20 - filled)}] {self.pct:3d}%")
         parts.append(f"{fmt_duration(el)} gået")
         if self.pct and 0 < self.pct < 100:
-            work_el = time.time() - self.phase_start
+            work_el = el - self.phase_start
             remaining = work_el * (100 - self.pct) / self.pct
             parts.append(f"ca. {fmt_duration(remaining)} tilbage")
         return "  ".join(parts)
@@ -396,7 +396,7 @@ class Status:
 PROGRESS_RE = re.compile(r"progress\s*=\s*(\d+)%")
 
 
-def run_with_controls(cmd, log_path: Path, audio_seconds=None) -> tuple[int, bool]:
+def run_with_controls(cmd, log_path: Path, audio_seconds=None) -> tuple[int, bool, float, float]:
     """Kør whisper-cli med statuslinje, live-tekst og (hvis muligt) P/S-taster."""
     controls = psutil is not None and msvcrt is not None and sys.stdin.isatty()
     if psutil is None:
@@ -481,7 +481,11 @@ def run_with_controls(cmd, log_path: Path, audio_seconds=None) -> tuple[int, boo
         with status.lock:
             status.clear()
         sys.stdout.flush()
-    return returncode, state["stopped"]
+    if status.paused:
+        status.set_paused(False)
+    active = status._elapsed()
+    paused = status.paused_total
+    return returncode, state["stopped"], active, paused
 
 
 # ---------------------------------------------------------------- input
@@ -589,9 +593,7 @@ def transcribe_one(item: str, *, whisper: str, ffmpeg: str, model: Path, fmt: st
             cmd += ["--prompt", prompt]
 
         print(f"\nTransskriberer med {threads} CPU-tråde ...\n")
-        start = time.time()
-        rc, stopped = run_with_controls(cmd, work / "whisper.log", dur)
-        elapsed = time.time() - start
+        rc, stopped, elapsed, paused_for = run_with_controls(cmd, work / "whisper.log", dur)
         if stopped:
             print("\nStoppet.")
             return "stop"
@@ -630,7 +632,8 @@ def transcribe_one(item: str, *, whisper: str, ffmpeg: str, model: Path, fmt: st
                 saved.append(target)
 
         speed = f"  ({dur / elapsed:.1f}x realtid)" if dur and elapsed > 0 else ""
-        print(f"\nFærdig på {fmt_duration(elapsed)}{speed}.")
+        pause_note = f"  - pauser ikke medregnet: {fmt_duration(paused_for)}" if paused_for >= 1 else ""
+        print(f"\nFærdig på {fmt_duration(elapsed)} aktiv tid{speed}.{pause_note}")
         for s in saved:
             print(f"  gemt: {s}")
         return "ok"
